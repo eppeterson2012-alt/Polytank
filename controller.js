@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const STORAGE_KEY = "polystar.gamepad.bindings.v3";
-  const DEADZONE = 0.18, ANALOG_PERIOD = 100;
+  const DEADZONE = 0.18, ANALOG_PERIOD = 100, STEERING_PERIOD = 80;
   const actions = [
     ["accelerate","Accelerate","KeyW"],
     ["brake","Brake","KeyS"],
@@ -11,6 +11,7 @@
     ["start","Start reset","KeyT"],
     ["camera","Cockpit camera","KeyC"]
   ];
+  const settingsActions = [...actions, ["steering","Steering (analog)",null]];
   const defaults = {
     accelerate:{type:"button",index:7},
     brake:{type:"button",index:6},
@@ -18,7 +19,8 @@
     right:{type:"axis",index:0,rest:0,end:1},
     checkpoint:{type:"button",index:3},
     start:{type:"button",index:2},
-    camera:{type:"button",index:9}
+    camera:{type:"button",index:9},
+    steering:{type:"analogAxis",index:0,rest:0}
   };
   let bindings=structuredClone(defaults),activePad=null,captureAction=null,captureBaseline=null;
   const heldKeys=new Set(),previous=new Map();
@@ -31,6 +33,8 @@
       // Migrate previous versions, which stored button numbers only.
       else if(Number.isInteger(v)&&v>=0&&v<32)bindings[id]={type:"button",index:v};
     }
+    const steer=saved&&saved.steering;
+    if(steer&&steer.type==="analogAxis"&&Number.isInteger(steer.index)&&steer.index>=0&&steer.index<16&&Number.isFinite(steer.rest))bindings.steering={type:"analogAxis",index:steer.index,rest:steer.rest};
   }catch(_){}
   function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(bindings));}catch(_){}}
   function keyEvent(code,type){
@@ -53,6 +57,22 @@
     if(!Number.isFinite(raw))return 0;
     return clamp((raw-binding.rest)/(binding.end-binding.rest));
   }
+  function readSteering(pad,binding){
+    if(!pad||!binding||binding.type!=="analogAxis")return 0;
+    const raw=pad.axes[binding.index];
+    if(!Number.isFinite(raw))return 0;
+    const delta=raw-binding.rest;
+    const range=delta<0?Math.max(0.01,1+binding.rest):Math.max(0.01,1-binding.rest);
+    const value=Math.max(-1,Math.min(1,delta/range));
+    if(Math.abs(value)<0.12)return 0;
+    return Math.sign(value)*Math.pow((Math.abs(value)-0.12)/0.88,1.15);
+  }
+  function analogSteerPressed(value,now){
+    const amount=Math.abs(value);
+    if(amount<0.01)return false;
+    if(amount>=0.98)return true;
+    return (now%STEERING_PERIOD)<amount*STEERING_PERIOD;
+  }
   function analogPressed(value,now){
     if(value<0.02)return false;
     if(value>=0.98)return true;
@@ -74,11 +94,12 @@
     const brake=readBinding(activePad,bindings.brake);
     const left=readBinding(activePad,bindings.left);
     const right=readBinding(activePad,bindings.right);
+    const steering=readSteering(activePad,bindings.steering);
     const state={
       accelerate:analogPressed(accel,now),
       brake:analogPressed(brake,now),
-      left:left>DEADZONE,
-      right:right>DEADZONE
+      left:bindings.steering?steering<0&&analogSteerPressed(steering,now):left>DEADZONE,
+      right:bindings.steering?steering>0&&analogSteerPressed(steering,now):right>DEADZONE
     };
     for(const [id,,key] of actions.slice(0,4))setKey(key,state[id]);
     for(const [id,,key] of actions.slice(4))pressOnce(id,key,readBinding(activePad,bindings[id])>0.55);
@@ -88,6 +109,7 @@
   function bindingLabel(b){
     if(!b)return "Not assigned";
     if(b.type==="button")return buttonNames[b.index]||("Button "+b.index);
+    if(b.type==="analogAxis")return "Axis "+(b.index+1)+" (analog)";
     return "Axis "+(b.index+1)+" "+(b.end>b.rest?"positive":"negative");
   }
   const style=document.createElement("style");
@@ -115,7 +137,7 @@
   actionsBar.append(reset,done);panel.append(title,help,rows,actionsBar);overlay.appendChild(panel);document.body.appendChild(overlay);
   function renderBindings(){
     rows.replaceChildren();
-    for(const [id,label] of actions){
+    for(const [id,label] of settingsActions){
       const row=document.createElement("div");row.className="ps-bind-row";
       const name=document.createElement("span");name.textContent=label;
       const button=document.createElement("button");button.type="button";
@@ -136,6 +158,18 @@
   reset.addEventListener("click",()=>{bindings=structuredClone(defaults);save();renderBindings();});
   function capturePoll(){
     if(!captureAction||!activePad)return;
+    // Analog steering captures the stick axis and its neutral center.
+    if(captureAction==="steering"){
+      for(let i=0;i<activePad.axes.length;i++){
+        const value=activePad.axes[i];
+        const base=captureBaseline&&Number.isFinite(captureBaseline[i])?captureBaseline[i]:0;
+        if(Math.abs(value-base)>0.35){
+          bindings.steering={type:"analogAxis",index:i,rest:base};
+          captureAction=null;captureBaseline=null;save();renderBindings();return;
+        }
+      }
+      return;
+    }
     // Prefer axes before buttons: some controllers expose analog triggers
     // as axes, and may also report a related button value.
     for(let i=0;i<activePad.axes.length;i++){
