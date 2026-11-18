@@ -1,9 +1,9 @@
 (() => {
   "use strict";
   const STORAGE_KEY = "polystar.gamepad.bindings.v2";
-  const DEADZONE = 0.18, THRESHOLD = 0.55;
+  const DEADZONE = 0.18, THRESHOLD = 0.15;
   const actions = [
-    ["accelerate","Accelerate","KeyW",0],["brake","Brake","KeyS",1],
+    ["accelerate","Accelerate","KeyW",7],["brake","Brake","KeyS",6],
     ["left","Steer left","KeyA",14],["right","Steer right","KeyD",15],
     ["checkpoint","Checkpoint reset","KeyR",3],["start","Start reset","KeyT",2],
     ["camera","Cockpit camera","KeyC",9]
@@ -99,7 +99,7 @@
     if(!captureAction||!activePad)return;
     for(let i=0;i<activePad.buttons.length;i++){
       const b=activePad.buttons[i];
-      if(b&&(b.pressed||b.value>0.75)){
+      if(b&&(b.pressed||b.value>0.15)){
         bindings[captureAction]=i;captureAction=null;save();renderBindings();break;
       }
     }
