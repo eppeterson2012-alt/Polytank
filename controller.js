@@ -129,7 +129,7 @@
   const overlay=document.createElement("div");overlay.id="ps-controller-overlay";
   const panel=document.createElement("div");panel.id="ps-controller-panel";panel.setAttribute("role","dialog");panel.setAttribute("aria-modal","true");
   const title=document.createElement("h2");title.textContent="Custom Controller Mapping";
-  const help=document.createElement("p");help.textContent="Choose an action, then press a button or move a stick/trigger. Axis inputs are detected too. Changes save automatically in this browser.";
+  const help=document.createElement("p");help.textContent="Choose an action, then press a button or move a stick/trigger. For Steering (analog), move the left stick horizontally. Steering is proportionally simulated because the game physics accepts digital left/right input. Changes save automatically in this browser.";
   const rows=document.createElement("div");rows.id="ps-controller-bindings";
   const actionsBar=document.createElement("div");actionsBar.className="ps-controller-actions";
   const reset=document.createElement("button");reset.type="button";reset.textContent="Restore defaults";
