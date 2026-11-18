@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const STORAGE_KEY = "polystar.gamepad.bindings.v2";
-  const DEADZONE = 0.18, THRESHOLD = 0.15;
+  const DEADZONE = 0.18, THRESHOLD = 0.15, ANALOG_PERIOD = 100;
   const actions = [
     ["accelerate","Accelerate","KeyW",7],["brake","Brake","KeyS",6],
     ["left","Steer left","KeyA",14],["right","Steer right","KeyD",15],
@@ -25,9 +25,18 @@
     if(down&&!heldKeys.has(code)){heldKeys.add(code);keyEvent(code,"keydown");}
     else if(!down&&heldKeys.has(code)){heldKeys.delete(code);keyEvent(code,"keyup");}
   }
-  function buttonDown(pad,index){
+  function buttonValue(pad,index){
     const b=pad&&pad.buttons&&pad.buttons[index];
-    return !!b&&(b.pressed||b.value>=THRESHOLD);
+    if(!b)return 0;
+    return Math.max(0,Math.min(1,Number.isFinite(b.value)?b.value:(b.pressed?1:0)));
+  }
+  function buttonDown(pad,index){return buttonValue(pad,index)>=THRESHOLD;}
+  // The game currently accepts digital keyboard controls only. Pulse-width
+  // modulation approximates analog trigger strength by varying held time.
+  function analogPressed(value,now){
+    if(value<0.02)return false;
+    if(value>=0.98)return true;
+    return (now%ANALOG_PERIOD)<value*ANALOG_PERIOD;
   }
   function releaseAll(){for(const code of [...heldKeys])setKey(code,false);previous.clear();}
   function pressOnce(id,code,down){
@@ -41,9 +50,10 @@
     for(const p of pads)if(p&&p.connected){activePad=p;break;}
     if(!activePad){releaseAll();requestAnimationFrame(poll);return;}
     const axis=activePad.axes[0]||0;
+    const now=performance.now();
     const state={
-      accelerate:buttonDown(activePad,bindings.accelerate),
-      brake:buttonDown(activePad,bindings.brake),
+      accelerate:analogPressed(buttonValue(activePad,bindings.accelerate),now),
+      brake:analogPressed(buttonValue(activePad,bindings.brake),now),
       left:buttonDown(activePad,bindings.left)||axis < -DEADZONE,
       right:buttonDown(activePad,bindings.right)||axis > DEADZONE
     };
