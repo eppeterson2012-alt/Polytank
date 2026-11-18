@@ -136,18 +136,20 @@
   reset.addEventListener("click",()=>{bindings=structuredClone(defaults);save();renderBindings();});
   function capturePoll(){
     if(!captureAction||!activePad)return;
-    for(let i=0;i<activePad.buttons.length;i++){
-      if(buttonValue(activePad,i)>0.55){
-        bindings[captureAction]={type:"button",index:i};
-        captureAction=null;captureBaseline=null;save();renderBindings();return;
-      }
-    }
+    // Prefer axes before buttons: some controllers expose analog triggers
+    // as axes, and may also report a related button value.
     for(let i=0;i<activePad.axes.length;i++){
       const value=activePad.axes[i];
       const base=captureBaseline&&Number.isFinite(captureBaseline[i])?captureBaseline[i]:0;
       const delta=value-base;
-      if(Math.abs(delta)>0.55){
+      if(Math.abs(delta)>0.45){
         bindings[captureAction]={type:"axis",index:i,rest:base,end:base+Math.sign(delta)};
+        captureAction=null;captureBaseline=null;save();renderBindings();return;
+      }
+    }
+    for(let i=0;i<activePad.buttons.length;i++){
+      if(buttonValue(activePad,i)>0.55){
+        bindings[captureAction]={type:"button",index:i};
         captureAction=null;captureBaseline=null;save();renderBindings();return;
       }
     }
