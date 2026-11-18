@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const STORAGE_KEY = "polystar.gamepad.bindings.v3";
-  const DEADZONE = 0.18, ANALOG_PERIOD = 100, STEERING_PERIOD = 80;
+  const DEADZONE = 0.18, ANALOG_PERIOD = 100, STEERING_PERIOD = 40;
   const actions = [
     ["accelerate","Accelerate","KeyW"],
     ["brake","Brake","KeyS"],
@@ -65,7 +65,7 @@
     const range=delta<0?Math.max(0.01,1+binding.rest):Math.max(0.01,1-binding.rest);
     const value=Math.max(-1,Math.min(1,delta/range));
     if(Math.abs(value)<0.12)return 0;
-    return Math.sign(value)*Math.pow((Math.abs(value)-0.12)/0.88,1.15);
+    return Math.sign(value)*Math.pow((Math.abs(value)-0.12)/0.88,1.6);
   }
   function analogSteerPressed(value,now){
     const amount=Math.abs(value);
