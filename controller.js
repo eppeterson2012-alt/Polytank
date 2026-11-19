@@ -22,7 +22,7 @@
     camera:{type:"button",index:9},
     steering:{type:"analogAxis",index:0,rest:0}
   };
-  let bindings=structuredClone(defaults),activePad=null,captureAction=null,captureBaseline=null;
+  let bindings=structuredClone(defaults),activePad=null,captureAction=null,captureBaseline=null,steeringCurve=1.6;
   const heldKeys=new Set(),previous=new Map();
   try {
     const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||"null");
@@ -33,10 +33,11 @@
       // Migrate previous versions, which stored button numbers only.
       else if(Number.isInteger(v)&&v>=0&&v<32)bindings[id]={type:"button",index:v};
     }
+    if(saved&&Number.isFinite(saved.steeringCurve))steeringCurve=Math.max(0.5,Math.min(3,saved.steeringCurve));
     const steer=saved&&saved.steering;
     if(steer&&steer.type==="analogAxis"&&Number.isInteger(steer.index)&&steer.index>=0&&steer.index<16&&Number.isFinite(steer.rest))bindings.steering={type:"analogAxis",index:steer.index,rest:steer.rest};
   }catch(_){}
-  function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(bindings));}catch(_){}}
+  function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify({...bindings,steeringCurve}));}catch(_){}}
   function keyEvent(code,type){
     const key=({KeyW:"w",KeyA:"a",KeyS:"s",KeyD:"d",KeyR:"r",KeyT:"t",KeyC:"c"})[code]||code;
     window.dispatchEvent(new KeyboardEvent(type,{code,key,bubbles:true,cancelable:true}));
@@ -65,7 +66,7 @@
     const range=delta<0?Math.max(0.01,1+binding.rest):Math.max(0.01,1-binding.rest);
     const value=Math.max(-1,Math.min(1,delta/range));
     if(Math.abs(value)<0.12)return 0;
-    return Math.sign(value)*Math.pow((Math.abs(value)-0.12)/0.88,1.6);
+    return Math.sign(value)*Math.pow((Math.abs(value)-0.12)/0.88,steeringCurve);
   }
   function analogSteerPressed(value,now){
     const amount=Math.abs(value);
@@ -122,6 +123,7 @@
     "#ps-controller-panel p{color:#c1ccda;font-size:12px;line-height:1.45;margin:0 0 14px}",
     ".ps-bind-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #ffffff18}",
     ".ps-bind-row button,.ps-controller-actions button{min-width:140px;padding:7px 9px;border:1px solid #65748a;border-radius:6px;background:#263548;color:#fff;cursor:pointer}",
+    ".ps-curve{padding:12px 0;border-bottom:1px solid #ffffff18}.ps-curve-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:7px;font-weight:600}.ps-curve input{width:100%;accent-color:#7da7e8}.ps-curve small{display:block;color:#c1ccda;font-size:11px;line-height:1.4;margin-top:5px}",
     ".ps-bind-row button.ps-listening{background:#73521c;border-color:#d7a64a}",
     ".ps-controller-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}"
   ].join("");
@@ -130,11 +132,20 @@
   const panel=document.createElement("div");panel.id="ps-controller-panel";panel.setAttribute("role","dialog");panel.setAttribute("aria-modal","true");
   const title=document.createElement("h2");title.textContent="Custom Controller Mapping";
   const help=document.createElement("p");help.textContent="Choose an action, then press a button or move a stick/trigger. For Steering (analog), move the left stick horizontally. Steering is proportionally simulated because the game physics accepts digital left/right input. Changes save automatically in this browser.";
+  const curveWrap=document.createElement("div");curveWrap.className="ps-curve";
+  const curveHead=document.createElement("div");curveHead.className="ps-curve-head";
+  const curveName=document.createElement("label");curveName.textContent="Steering curve";
+  const curveValue=document.createElement("span");
+  const curveSlider=document.createElement("input");curveSlider.type="range";curveSlider.min="0.5";curveSlider.max="3";curveSlider.step="0.1";curveSlider.value=String(steeringCurve);
+  const curveHelp=document.createElement("small");curveHelp.textContent="Lower = more sensitive around the center. Higher = gentler near the center, with more steering near the ends.";
+  function updateCurveDisplay(){curveValue.textContent=steeringCurve.toFixed(1);curveSlider.value=String(steeringCurve);}
+  curveSlider.addEventListener("input",()=>{steeringCurve=Number(curveSlider.value);updateCurveDisplay();save();});
+  curveHead.append(curveName,curveValue);curveWrap.append(curveHead,curveSlider,curveHelp);updateCurveDisplay();
   const rows=document.createElement("div");rows.id="ps-controller-bindings";
   const actionsBar=document.createElement("div");actionsBar.className="ps-controller-actions";
   const reset=document.createElement("button");reset.type="button";reset.textContent="Restore defaults";
   const done=document.createElement("button");done.type="button";done.textContent="Done";
-  actionsBar.append(reset,done);panel.append(title,help,rows,actionsBar);overlay.appendChild(panel);document.body.appendChild(overlay);
+  actionsBar.append(reset,done);panel.append(title,help,curveWrap,rows,actionsBar);overlay.appendChild(panel);document.body.appendChild(overlay);
   function renderBindings(){
     rows.replaceChildren();
     for(const [id,label] of settingsActions){
