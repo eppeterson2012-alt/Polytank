@@ -113,60 +113,66 @@
     if(b.type==="analogAxis")return "Axis "+(b.index+1)+" (analog)";
     return "Axis "+(b.index+1)+" "+(b.end>b.rest?"positive":"negative");
   }
-  const style=document.createElement("style");
-  style.textContent=[
-    "#ps-controller-settings-button{margin:6px 0;padding:7px 11px;border:1px solid #65748a;border-radius:7px;background:#263548;color:#fff;font:600 13px system-ui;cursor:pointer}",
-    "#ps-controller-overlay{position:fixed;inset:0;z-index:2147483646;display:none;align-items:center;justify-content:center;padding:12px;background:#0009;font-family:inherit;color:var(--text-color,#fff)}",
-    "#ps-controller-overlay.ps-open{display:flex}",
-    "#ps-controller-panel{box-sizing:border-box;display:flex;flex-direction:column;width:min(800px,calc(100vw - 24px));height:min(85vh,760px);max-height:85vh;overflow:hidden;padding:0;background:var(--surface-color,#202a38);color:var(--text-color,#fff);border:1px solid var(--surface-tertiary-color,#536174);box-shadow:0 12px 40px #0008}",
-    "#ps-controller-panel h2{flex:none;margin:10px;padding:0;font-size:clamp(24px,4vw,38px);font-weight:normal;text-align:center;color:var(--text-color,#fff)}",
-    "#ps-controller-panel > p{flex:none;margin:0;padding:0 16px 12px;color:var(--text-color,#fff);font-size:clamp(12px,1.7vw,15px);line-height:1.45;opacity:.85}",
-    "#ps-controller-bindings{flex:1;min-height:0;overflow-y:auto;padding:4px 8px 12px;background:var(--surface-secondary-color,#293647)}",
-    ".ps-bind-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px;padding:4px 4px 12px;border-bottom:1px solid var(--surface-tertiary-color,#536174)}",
-    ".ps-curve{padding:12px 0;border-bottom:1px solid #ffffff18}.ps-curve-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:7px;font-weight:600}.ps-curve input{width:100%;accent-color:#7da7e8}.ps-curve small{display:block;color:#c1ccda;font-size:11px;line-height:1.4;margin-top:5px}",
-    ".ps-bind-row span{min-width:0;flex:1;color:var(--text-color,#fff);font-size:clamp(16px,2.5vw,25px)}",
-    ".ps-bind-row button,.ps-controller-actions button{box-sizing:border-box;min-width:min(190px,45%);min-height:44px;padding:7px 10px;border:1px solid var(--surface-tertiary-color,#718096);border-radius:2px;background:var(--button-color,#39495d);color:var(--text-color,#fff);font:inherit;font-size:clamp(13px,1.8vw,19px);cursor:pointer}",
-  ].join("");
-  document.head.appendChild(style);
-  const overlay=document.createElement("div");overlay.id="ps-controller-overlay";
-  const panel=document.createElement("div");panel.id="ps-controller-panel";panel.setAttribute("role","dialog");panel.setAttribute("aria-modal","true");
-  const title=document.createElement("h2");title.textContent="Custom Controller Mapping";
-  const help=document.createElement("p");help.textContent="Choose an action, then press a button or move a stick/trigger. For Steering (analog), move the left stick horizontally. Steering is proportionally simulated because the game physics accepts digital left/right input. Changes save automatically in this browser.";
-  const curveWrap=document.createElement("div");curveWrap.className="ps-curve";
-  const curveHead=document.createElement("div");curveHead.className="ps-curve-head";
-  const curveName=document.createElement("label");curveName.textContent="Steering curve";
-  const curveValue=document.createElement("span");
-  const curveSlider=document.createElement("input");curveSlider.type="range";curveSlider.min="0.5";curveSlider.max="3";curveSlider.step="0.1";curveSlider.value=String(steeringCurve);
-  const curveHelp=document.createElement("small");curveHelp.textContent="Lower = more sensitive around the center. Higher = gentler near the center, with more steering near the ends.";
-  function updateCurveDisplay(){curveValue.textContent=steeringCurve.toFixed(1);curveSlider.value=String(steeringCurve);}
-  curveSlider.addEventListener("input",()=>{steeringCurve=Number(curveSlider.value);updateCurveDisplay();save();});
-  curveHead.append(curveName,curveValue);curveWrap.append(curveHead,curveSlider,curveHelp);updateCurveDisplay();
-  const rows=document.createElement("div");rows.id="ps-controller-bindings";
-  const actionsBar=document.createElement("div");actionsBar.className="ps-controller-actions";
-  const reset=document.createElement("button");reset.type="button";reset.textContent="Restore defaults";
-  const done=document.createElement("button");done.type="button";done.textContent="Done";
-  actionsBar.append(reset,done);panel.append(title,help,curveWrap,rows,actionsBar);overlay.appendChild(panel);document.body.appendChild(overlay);
+  let settingsContainer=null,gamepadHeading=null,rows=null,curveSlider=null,curveValue=null;
   function renderBindings(){
+    if(!(rows&&curveSlider&&curveValue))return;
     rows.replaceChildren();
     for(const [id,label] of settingsActions){
-      const row=document.createElement("div");row.className="ps-bind-row";
-      const name=document.createElement("span");name.textContent=label;
+      const row=document.createElement("div");row.className="setting key-binding ps-gamepad-setting";
+      const name=document.createElement("p");name.textContent=label;
       const button=document.createElement("button");button.type="button";
       button.textContent=captureAction===id?"Press or move control…":bindingLabel(bindings[id]);
-      if(captureAction===id)button.classList.add("ps-listening");
+      if(captureAction===id)button.classList.add("selected");
       button.addEventListener("click",()=>{
         captureAction=id;
         captureBaseline=activePad?Array.from(activePad.axes):null;
         renderBindings();
       });
-      row.append(name,button);rows.appendChild(row);
+      const wrapper=document.createElement("div");wrapper.className="button-wrapper";
+      wrapper.appendChild(button);row.append(name,wrapper);rows.appendChild(row);
     }
+    curveValue.textContent=steeringCurve.toFixed(1);
+    curveSlider.value=String(steeringCurve);
   }
-  function openSettings(){captureAction=null;captureBaseline=null;renderBindings();overlay.classList.add("ps-open");}
-  function closeSettings(){captureAction=null;captureBaseline=null;overlay.classList.remove("ps-open");}
-  done.addEventListener("click",closeSettings);
-  overlay.addEventListener("click",e=>{if(e.target===overlay)closeSettings();});
-  reset.addEventListener("click",()=>{bindings=structuredClone(defaults);save();renderBindings();});
+  function installSettings(){
+    const menu=document.querySelector(".settings-menu-ui");
+    const container=menu&&menu.querySelector(":scope > .container");
+    if(!container)return;
+    settingsContainer=container;
+    let section=document.getElementById("ps-gamepad-settings");
+    if(section&&section.parentElement===container)return;
+    if(section)section.remove();
+    section=document.createElement("section");section.id="ps-gamepad-settings";
+    gamepadHeading=document.createElement("h3");gamepadHeading.textContent="Gamepad";
+    rows=document.createElement("div");
+    const curveRow=document.createElement("div");curveRow.className="setting ps-gamepad-setting";
+    const curveLabel=document.createElement("p");curveLabel.textContent="Steering curve";
+    curveSlider=document.createElement("input");curveSlider.type="range";
+    curveSlider.min="0.5";curveSlider.max="3";curveSlider.step="0.1";curveSlider.value=String(steeringCurve);
+    curveSlider.addEventListener("input",()=>{
+      steeringCurve=Number(curveSlider.value);
+      curveValue.textContent=steeringCurve.toFixed(1);
+      save();
+    });
+    curveValue=document.createElement("span");curveValue.style.cssText="align-self:center;margin:0 12px;color:var(--text-color);font-size:22px;min-width:36px;text-align:right";
+    const curveWrap=document.createElement("div");curveWrap.style.cssText="display:flex;align-items:center;gap:8px";
+    curveWrap.append(curveSlider,curveValue);curveRow.append(curveLabel,curveWrap);
+    section.append(gamepadHeading,curveRow,rows);
+    const resetRow=document.createElement("div");resetRow.className="setting ps-gamepad-setting";
+    const resetLabel=document.createElement("p");resetLabel.textContent="Controller mappings";
+    const resetButton=document.createElement("button");resetButton.type="button";resetButton.textContent="Restore defaults";
+    resetButton.addEventListener("click",()=>{
+      bindings=structuredClone(defaults);save();renderBindings();
+    });
+    const resetWrap=document.createElement("div");resetWrap.className="button-wrapper";
+    resetWrap.appendChild(resetButton);resetRow.append(resetLabel,resetWrap);section.appendChild(resetRow);
+    const editorHeading=[...container.querySelectorAll(":scope > h3")].find(el=>el.textContent.trim()==="Editor");
+    container.insertBefore(section,editorHeading||null);
+    renderBindings();
+  }
+  const observer=new MutationObserver(installSettings);
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+  installSettings();
   function capturePoll(){
     if(!captureAction||!activePad)return;
     // Analog steering captures the stick axis and its neutral center.
