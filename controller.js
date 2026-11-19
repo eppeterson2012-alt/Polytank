@@ -208,18 +208,6 @@
       }
     }
   }
-  function installSettingsEntry(){
-    if(document.getElementById("ps-controller-settings-button"))return;
-    const candidates=[...document.querySelectorAll("div,span,p,h1,h2,h3")]
-      .filter(el=>el.childElementCount===0&&el.textContent.trim()==="Controls"&&el.getClientRects().length);
-    if(!candidates.length)return;
-    const heading=candidates[candidates.length-1];
-    const button=document.createElement("button");button.id="ps-controller-settings-button";
-    button.type="button";button.textContent="Custom Controller Mapping";button.addEventListener("click",openSettings);
-    heading.insertAdjacentElement("afterend",button);
-  }
-  const observer=new MutationObserver(installSettingsEntry);
-  observer.observe(document.documentElement,{childList:true,subtree:true});installSettingsEntry();
   function captureLoop(){capturePoll();requestAnimationFrame(captureLoop);}
   window.addEventListener("gamepaddisconnected",releaseAll);
   window.addEventListener("pagehide",releaseAll);
