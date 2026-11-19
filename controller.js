@@ -113,12 +113,13 @@
     if(b.type==="analogAxis")return "Axis "+(b.index+1)+" (analog)";
     return "Axis "+(b.index+1)+" "+(b.end>b.rest?"positive":"negative");
   }
-  let settingsContainer=null,gamepadHeading=null,rows=null,curveSlider=null,curveValue=null;
+  let settingsContainer=null,gamepadHeading=null,curveRow=null,curveSlider=null,curveValue=null,resetRow=null,mappingRows=[];
   function renderBindings(){
-    if(!(rows&&curveSlider&&curveValue))return;
-    rows.replaceChildren();
+    if(!settingsContainer)return;
+    for(const row of mappingRows)row.remove();
+    mappingRows=[];
     for(const [id,label] of settingsActions){
-      const row=document.createElement("div");row.className="setting key-binding ps-gamepad-setting";
+      const row=document.createElement("div");row.className="setting key-binding";
       const name=document.createElement("p");name.textContent=label;
       const button=document.createElement("button");button.type="button";
       button.textContent=captureAction===id?"Press or move control…":bindingLabel(bindings[id]);
@@ -129,45 +130,47 @@
         renderBindings();
       });
       const wrapper=document.createElement("div");wrapper.className="button-wrapper";
-      wrapper.appendChild(button);row.append(name,wrapper);rows.appendChild(row);
+      wrapper.appendChild(button);row.append(name,wrapper);mappingRows.push(row);
     }
     curveValue.textContent=steeringCurve.toFixed(1);
     curveSlider.value=String(steeringCurve);
+    const anchor=resetRow;
+    for(const row of mappingRows)settingsContainer.insertBefore(row,anchor);
   }
   function installSettings(){
     const menu=document.querySelector(".settings-menu-ui");
     const container=menu&&menu.querySelector(":scope > .container");
     if(!container)return;
     settingsContainer=container;
-    let section=document.getElementById("ps-gamepad-settings");
-    if(section&&section.parentElement===container)return;
-    if(section)section.remove();
-    section=document.createElement("section");section.id="ps-gamepad-settings";
-    gamepadHeading=document.createElement("h3");gamepadHeading.textContent="Gamepad";
-    rows=document.createElement("div");
-    const curveRow=document.createElement("div");curveRow.className="setting ps-gamepad-setting";
+    if(document.getElementById("ps-gamepad-settings-heading")?.parentElement===container)return;
+    document.getElementById("ps-gamepad-settings-heading")?.remove();
+    document.getElementById("ps-gamepad-curve-row")?.remove();
+    document.getElementById("ps-gamepad-reset-row")?.remove();
+    gamepadHeading=document.createElement("h3");gamepadHeading.id="ps-gamepad-settings-heading";gamepadHeading.textContent="Gamepad";
+    curveRow=document.createElement("div");curveRow.id="ps-gamepad-curve-row";curveRow.className="setting";
     const curveLabel=document.createElement("p");curveLabel.textContent="Steering curve";
     curveSlider=document.createElement("input");curveSlider.type="range";
     curveSlider.min="0.5";curveSlider.max="3";curveSlider.step="0.1";curveSlider.value=String(steeringCurve);
+    curveValue=document.createElement("span");curveValue.style.cssText="align-self:center;margin:0 12px;color:var(--text-color);font-size:22px;min-width:36px;text-align:right";
     curveSlider.addEventListener("input",()=>{
       steeringCurve=Number(curveSlider.value);
       curveValue.textContent=steeringCurve.toFixed(1);
       save();
     });
-    curveValue=document.createElement("span");curveValue.style.cssText="align-self:center;margin:0 12px;color:var(--text-color);font-size:22px;min-width:36px;text-align:right";
     const curveWrap=document.createElement("div");curveWrap.style.cssText="display:flex;align-items:center;gap:8px";
     curveWrap.append(curveSlider,curveValue);curveRow.append(curveLabel,curveWrap);
-    section.append(gamepadHeading,curveRow,rows);
-    const resetRow=document.createElement("div");resetRow.className="setting ps-gamepad-setting";
+    resetRow=document.createElement("div");resetRow.id="ps-gamepad-reset-row";resetRow.className="setting";
     const resetLabel=document.createElement("p");resetLabel.textContent="Controller mappings";
     const resetButton=document.createElement("button");resetButton.type="button";resetButton.textContent="Restore defaults";
     resetButton.addEventListener("click",()=>{
       bindings=structuredClone(defaults);save();renderBindings();
     });
     const resetWrap=document.createElement("div");resetWrap.className="button-wrapper";
-    resetWrap.appendChild(resetButton);resetRow.append(resetLabel,resetWrap);section.appendChild(resetRow);
+    resetWrap.appendChild(resetButton);resetRow.append(resetLabel,resetWrap);
     const editorHeading=[...container.querySelectorAll(":scope > h3")].find(el=>el.textContent.trim()==="Editor");
-    container.insertBefore(section,editorHeading||null);
+    container.insertBefore(gamepadHeading,editorHeading||null);
+    container.insertBefore(curveRow,editorHeading||null);
+    container.insertBefore(resetRow,editorHeading||null);
     renderBindings();
   }
   const observer=new MutationObserver(installSettings);
